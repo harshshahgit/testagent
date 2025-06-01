@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Assistant Agent</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 800px; margin: auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; text-align: center; }
+        textarea { width: calc(100% - 22px); padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
+        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #0056b3; }
+        .output-section { margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 4px; }
+        .output-section h2 { margin-top: 0; color: #495057; }
+        pre { background-color: #f8f9fa; padding: 10px; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; }
+        .status { font-style: italic; color: #6c757d; }
+        .error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Personal Executive Assistant</h1>
+        <textarea id="queryInput" rows="3" placeholder="Enter your query, e.g., 'Do I have meetings tomorrow from 6-8?'"></textarea>
+        <button onclick="submitQuery()">Submit Query</button>
+
+        <div id="results" class="output-section" style="display:none;">
+            <h2>Agent Response</h2>
+            <p class="status" id="statusMessage"></p>
+
+            <h3>Query:</h3>
+            <pre id="displayQuery"></pre>
+
+            <h3>Detected Intent:</h3>
+            <pre id="displayIntent"></pre>
+
+            <h3>Proposed Plan:</h3>
+            <pre id="displayPlan"></pre>
+
+            <h3>Execution Summary:</h3>
+            <pre id="displayExecution"></pre>
+
+            <p class="error" id="errorMessage" style="display:none;"></p>
+        </div>
+    </div>
+
+    <script>
+        async function submitQuery() {
+            const query = document.getElementById('queryInput').value;
+            const resultsDiv = document.getElementById('results');
+            const statusMessage = document.getElementById('statusMessage');
+            const displayQuery = document.getElementById('displayQuery');
+            const displayIntent = document.getElementById('displayIntent');
+            const displayPlan = document.getElementById('displayPlan');
+            const displayExecution = document.getElementById('displayExecution');
+            const errorMessage = document.getElementById('errorMessage');
+
+            resultsDiv.style.display = 'block';
+            statusMessage.textContent = 'Processing your query...';
+            errorMessage.style.display = 'none';
+            displayQuery.textContent = '';
+            displayIntent.textContent = '';
+            displayPlan.textContent = '';
+            displayExecution.textContent = '';
+
+            try {
+                const response = await fetch('/process_query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query }),
+                });
+
+                statusMessage.textContent = 'Query processed.';
+                const result = await response.json();
+
+                if (response.ok) {
+                    displayQuery.textContent = result.query || 'N/A';
+                    displayIntent.textContent = result.intent || 'N/A';
+
+                    // Format plan for display
+                    if (result.plan && Array.isArray(result.plan)) {
+                        displayPlan.textContent = result.plan.map(step =>
+                            `Tool: ${step.tool}, Action: ${step.action}, Params: ${step.params}`
+                        ).join('\n');
+                    } else {
+                        displayPlan.textContent = 'No plan generated or plan is not in expected format.';
+                    }
+
+                    // Format execution summary for display
+                    if (result.execution_summary) {
+                        let summaryText = '';
+                        if (result.execution_summary.outputs && result.execution_summary.outputs.length > 0) {
+                            summaryText += 'Outputs:\n' + result.execution_summary.outputs.join('\n') + '\n\n';
+                        }
+                        if (result.execution_summary.completed && result.execution_summary.completed.length > 0) {
+                            summaryText += 'Completed Steps:\n' + result.execution_summary.completed.map(s => `  - ${s.tool}: ${s.action}`).join('\n') + '\n\n';
+                        }
+                        if (result.execution_summary.remaining && result.execution_summary.remaining.length > 0) {
+                            summaryText += 'Remaining/Failed Steps:\n' + result.execution_summary.remaining.map(s => `  - ${s.tool}: ${s.action}`).join('\n');
+                        }
+                        displayExecution.textContent = summaryText || 'No execution details.';
+                    } else {
+                        displayExecution.textContent = 'No execution summary available.';
+                    }
+
+                } else {
+                    errorMessage.textContent = `Error: ${result.error || 'Unknown server error'}`;
+                    errorMessage.style.display = 'block';
+                    statusMessage.textContent = 'Failed to process query.';
+                }
+            } catch (error) {
+                console.error('Error submitting query:', error);
+                errorMessage.textContent = `Client-side error: ${error.message}`;
+                errorMessage.style.display = 'block';
+                statusMessage.textContent = 'Failed to process query.';
+            }
+        }
+    </script>
+</body>
+</html>
